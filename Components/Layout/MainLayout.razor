@@ -1,0 +1,65 @@
+﻿@inherits LayoutComponentBase
+
+<div class="layout @(IsDarkMode ? "dark-theme" : "light-theme")">
+    <div class="layout-wrapper">
+        <aside class="sidebar">
+            <a class="navbar-brand logo" href="/">
+                Thoughs<span class="logo-accent">Haul</span>
+            </a>
+
+            <nav class="nav flex-column nav-scrollable">
+                <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                    <span class="bi bi-house-door-fill"></span> Home
+                </NavLink>
+
+                <NavLink class="nav-link" href="journal">
+                    <span class="bi bi-pencil-square"></span> Journal
+                </NavLink>
+
+                <NavLink class="nav-link" href="calendar">
+                    <span class="bi bi-calendar3"></span> Calendar
+                </NavLink>
+            </nav>
+
+            <div class="sidebar-footer">
+                <NavLink class="nav-link" href="profile">
+                    <span class="bi bi-person-circle"></span> Profile
+                </NavLink>
+
+                <NavLink class="nav-link" href="settings">
+                    <span class="bi bi-gear-fill"></span> Settings
+                </NavLink>
+
+                <button class="btn-logout-nav" @onclick="HandleLogout">
+                    <span class="bi bi-box-arrow-right"></span> Logout
+                </button>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header class="top-nav">
+                <input class="search-bar" placeholder="Search..." />
+
+                <div class="header-actions">
+                    <button class="btn-theme-toggle" @onclick="ToggleTheme">
+                        @(IsDarkMode ? "☀️ Light" : "🌙 Dark")
+                    </button>
+                    <button class="btn-register">Register</button>
+                    <button class="btn-login">Login</button>
+                </div>
+            </header>
+
+            <div class="content-area">
+                @Body
+            </div>
+        </main>
+    </div>
+</div>
+
+@code {
+    bool IsDarkMode;
+
+    void ToggleTheme() => IsDarkMode = !IsDarkMode;
+
+    void HandleLogout() { }
+}
