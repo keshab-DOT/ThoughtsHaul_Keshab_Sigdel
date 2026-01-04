@@ -332,25 +332,40 @@ h1:focus {
     overflow-y: auto;
 }
 
+/*navation*/
 .top-nav {
     padding: 1rem 2rem;
     display: flex;
+    align-items: center;
     justify-content: space-between;
     background: var(--bg-card);
     border-bottom: 1px solid var(--border-color);
+}
+
+.nav-left {
+    display: flex;
+    align-items: center;
 }
 
 .search-bar {
     padding: 10px 18px;
     border-radius: 25px;
     border: 1px solid var(--border-color);
+    background: transparent;
 }
 
-.btn-theme-toggle, .btn-register {
+.nav-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.btn-theme-toggle,
+.btn-register {
     padding: 8px 16px;
     border-radius: 20px;
     border: 1px solid var(--border-color);
-    background: transparent;
+    background: var(--accent);
     cursor: pointer;
 }
 
@@ -360,7 +375,10 @@ h1:focus {
     background: var(--accent);
     color: white;
     border: none;
+    cursor: pointer;
 }
+
+
 
 /* Calendar */
 .calendar-container {
@@ -459,6 +477,93 @@ h1:focus {
     cursor: pointer;
     color: red;
 }
+
+/* Journal */
+.journal-container {
+    max-width: 1100px;
+    margin: auto;
+    padding: 20px;
+    font-family: Segoe UI, Arial;
+}
+
+.journal-form input,
+.journal-form textarea,
+.filter-box input,
+.filter-box select {
+    width: 100%;
+    padding: 10px;
+    margin: 6px 0;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+}
+
+button {
+    padding: 10px 16px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    background: #4b7bec;
+    color: white;
+}
+
+.row {
+    display: flex;
+    gap: 10px;
+}
+
+.journal-list {
+    margin-top: 15px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+.entry-card {
+    padding: 12px;
+    border-radius: 10px;
+    background: #f5f6fa;
+    cursor: pointer;
+    border: 1px solid #ddd;
+    transition: 0.2s;
+}
+
+    .entry-card:hover {
+        background: #e8ecff;
+    }
+
+.journal-view {
+    margin-top: 15px;
+    padding: 15px;
+    border-radius: 10px;
+    border: 1px solid #ddd;
+    background: #fff;
+}
+
+.meta {
+    margin-top: 6px;
+    font-size: 14px;
+    color: #555;
+}
+
+.streak-box {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 15px;
+}
+
+.streak-item {
+    flex: 1;
+    padding: 12px;
+    border-radius: 10px;
+    background: #222f3e;
+    color: white;
+    text-align: center;
+}
+
+    .streak-item h4 {
+        margin-bottom: 4px;
+        font-weight: 500;
+    }
 
 
 

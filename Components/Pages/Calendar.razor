@@ -1,6 +1,7 @@
 ﻿@page "/calendar"
 
 <div class="calendar-container">
+
     <div class="calendar-top">
         <button @onclick="PrevMonth">❮</button>
         <h2>@currentDate.ToString("MMMM yyyy")</h2>
@@ -9,13 +10,16 @@
 
     <div class="task-controls">
         <input placeholder="Task Title" @bind="newTaskTitle" />
+
         <input type="time" @bind="newTaskTime" />
+
         <select @bind="selectedDay">
             @for (int i = 1; i <= daysInMonth; i++)
             {
                 <option value="@i">@i</option>
             }
         </select>
+
         <button @onclick="AddTask">Add Task</button>
 
         <select @onchange="SortTasks">
@@ -39,28 +43,35 @@
         {
             <div class="day @(IsToday(day) ? "today" : "")">
                 <span class="date">@day</span>
+
                 @if (Tasks.ContainsKey(day))
                 {
                     @foreach (var task in Tasks[day])
                     {
                         <div class="task-card">
-                            <strong>@task.Time.ToString(@"hh\:mm")</strong> - @task.Title
-                            <span class="remove-task" @onclick="@(() => RemoveTask(day, task))">×</span>
+                            <strong>@task.Time.ToString("HH:mm")</strong>
+                            - @task.Title
+                            <span class="remove-task"
+                                  @onclick="@(() => RemoveTask(day, task))">×</span>
                         </div>
                     }
                 }
             </div>
         }
     </div>
+
 </div>
 
 @code {
+
     DateTime currentDate = DateTime.Now;
+
     string[] dayNames = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
 
     int daysInMonth => DateTime.DaysInMonth(currentDate.Year, currentDate.Month);
 
-    int startOffset => (int)new DateTime(currentDate.Year, currentDate.Month, 1).DayOfWeek;
+    int startOffset =>
+        (int)new DateTime(currentDate.Year, currentDate.Month, 1).DayOfWeek;
 
     bool IsToday(int day) =>
         DateTime.Today.Year == currentDate.Year &&
@@ -68,43 +79,70 @@
         DateTime.Today.Day == day;
 
     void NextMonth() => currentDate = currentDate.AddMonths(1);
+
     void PrevMonth() => currentDate = currentDate.AddMonths(-1);
 
     class TaskItem
     {
-        public string Title { get; set; }
-        public TimeSpan Time { get; set; }
+        public string Title { get; set; } = "";
+        public TimeOnly Time { get; set; }
     }
 
     Dictionary<int, List<TaskItem>> Tasks = new();
-    string newTaskTitle;
-    TimeSpan newTaskTime = new TimeSpan(12, 0, 0);
+
+    string newTaskTitle = "";
+
+    TimeOnly? newTaskTime = new TimeOnly(12, 0);
+
     int selectedDay = DateTime.Today.Day;
 
     void AddTask()
     {
         if (string.IsNullOrWhiteSpace(newTaskTitle)) return;
+        if (newTaskTime is null) return;
 
-        if (!Tasks.ContainsKey(selectedDay)) Tasks[selectedDay] = new List<TaskItem>();
-        Tasks[selectedDay].Add(new TaskItem { Title = newTaskTitle, Time = newTaskTime });
+        if (!Tasks.ContainsKey(selectedDay))
+            Tasks[selectedDay] = new List<TaskItem>();
+
+        Tasks[selectedDay].Add(new TaskItem
+        {
+            Title = newTaskTitle,
+            Time = newTaskTime.Value
+        });
+
+        SortTasks("time");
         newTaskTitle = "";
     }
 
     void RemoveTask(int day, TaskItem task)
     {
         Tasks[day].Remove(task);
-        if (Tasks[day].Count == 0) Tasks.Remove(day);
+        if (Tasks[day].Count == 0)
+            Tasks.Remove(day);
     }
 
     void SortTasks(ChangeEventArgs e)
     {
-        string sortBy = e.Value.ToString();
+        SortTasks(e.Value?.ToString() ?? "time");
+    }
+
+    void SortTasks(string sortBy)
+    {
         foreach (var key in Tasks.Keys.ToList())
         {
-            if (sortBy == "time")
-                Tasks[key] = Tasks[key].OrderBy(t => t.Time).ToList();
+            if (sortBy == "title")
+            {
+                Tasks[key] = Tasks[key]
+                    .OrderBy(t => t.Title)
+                    .ToList();
+            }
             else
-                Tasks[key] = Tasks[key].OrderBy(t => t.Title).ToList();
+            {
+                Tasks[key] = Tasks[key]
+                    .OrderBy(t => t.Time.Hour)
+                    .ThenBy(t => t.Time.Minute)
+                    .ToList();
+            }
         }
     }
 }

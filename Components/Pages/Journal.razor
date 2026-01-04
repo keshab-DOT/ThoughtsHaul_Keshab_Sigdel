@@ -1,1 +1,223 @@
-@page "/Journal"
+﻿@page "/journal"
+
+<div class="journal-container">
+    <h2>Daily Journal</h2>
+
+    <div class="streak-box">
+        <div class="streak-item">
+            <h4>Current Streak</h4>
+            <p>@currentStreak day(s)</p>
+        </div>
+
+        <div class="streak-item">
+            <h4>Longest Streak</h4>
+            <p>@longestStreak day(s)</p>
+        </div>
+
+        <div class="streak-item">
+            <h4>Missed Days</h4>
+            <p>@(missedDays.Count == 0 ? "None 🎉" : string.Join(", ", missedDays.Select(d => d.ToString("dd MMM"))))</p>
+        </div>
+    </div>
+
+    <div class="journal-form">
+        <input placeholder="Journal Title" @bind="newEntry.Title" />
+        <textarea placeholder="Write journal..." @bind="newEntry.Content"></textarea>
+
+        <div class="row">
+            <select @bind="newEntry.PrimaryMood">
+                <option value="">Primary Mood</option>
+                @foreach (var mood in moods)
+                {
+                    <option>@mood</option>
+                }
+            </select>
+
+            <select @bind="newEntry.SecondaryMood1">
+                <option value="">Secondary Mood</option>
+                @foreach (var mood in moods)
+                {
+                    <option>@mood</option>
+                }
+            </select>
+
+            <select @bind="newEntry.SecondaryMood2">
+                <option value="">Secondary Mood</option>
+                @foreach (var mood in moods)
+                {
+                    <option>@mood</option>
+                }
+            </select>
+        </div>
+
+        <input placeholder="Tags (comma separated)" @bind="tagInput" />
+        <button @onclick="SaveEntry">Save</button>
+    </div>
+
+    <div class="filter-box">
+        <input placeholder="Search title or content..." @bind="searchText" />
+        <input type="date" @bind="filterDate" />
+
+        <select @bind="filterMood">
+            <option value="">Filter by Mood</option>
+            @foreach (var mood in moods)
+            {
+                <option>@mood</option>
+            }
+        </select>
+
+        <input placeholder="Filter by Tag" @bind="filterTag" />
+    </div>
+
+    <div class="journal-list">
+        @foreach (var entry in FilteredEntries)
+        {
+            <div class="entry-card" @onclick="@(() => SelectEntry(entry))">
+                <h4>@entry.Title</h4>
+                <p>@entry.CreatedAt.ToString("dd MMM yyyy")</p>
+                <span>@entry.PrimaryMood</span>
+            </div>
+        }
+    </div>
+
+    @if (selectedEntry != null)
+    {
+        <div class="journal-view">
+            <h3>@selectedEntry.Title</h3>
+            <p class="date">@selectedEntry.CreatedAt.ToString("dd MMM yyyy")</p>
+            <p>@selectedEntry.Content</p>
+
+            <div class="meta">
+                <span>Mood: @selectedEntry.PrimaryMood</span>
+                <span>Tags: @string.Join(", ", selectedEntry.Tags)</span>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+
+    List<string> moods = new()
+    {
+        "Happy","Excited","Relaxed","Calm",
+        "Sad","Stressed","Anxious"
+    };
+
+    List<JournalEntry> entries = new();
+
+    JournalEntry newEntry = new();
+
+    JournalEntry? selectedEntry;
+
+    string tagInput = "";
+    string searchText = "";
+    string filterMood = "";
+    string filterTag = "";
+    DateTime? filterDate;
+
+    int currentStreak = 0;
+    int longestStreak = 0;
+    List<DateTime> missedDays = new();
+
+    void SaveEntry()
+    {
+        if (string.IsNullOrWhiteSpace(newEntry.Content))
+            return;
+
+        var existing = entries.FirstOrDefault(e => e.CreatedAt.Date == DateTime.Today);
+        if (existing != null)
+            entries.Remove(existing);
+
+        newEntry.CreatedAt = DateTime.Now;
+        newEntry.Tags = tagInput
+            .Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(t => t.Trim())
+            .ToList();
+
+        entries.Add(newEntry);
+        entries = entries
+            .OrderByDescending(e => e.CreatedAt)
+            .ToList();
+
+        newEntry = new JournalEntry();
+        tagInput = "";
+
+        RecalculateStreaks();
+    }
+
+    IEnumerable<JournalEntry> FilteredEntries =>
+        entries.Where(e =>
+            (string.IsNullOrWhiteSpace(searchText) ||
+             e.Title.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+             e.Content.Contains(searchText, StringComparison.OrdinalIgnoreCase)) &&
+            (!filterDate.HasValue || e.CreatedAt.Date == filterDate.Value.Date) &&
+            (string.IsNullOrWhiteSpace(filterMood) ||
+             e.PrimaryMood == filterMood ||
+             e.SecondaryMood1 == filterMood ||
+             e.SecondaryMood2 == filterMood) &&
+            (string.IsNullOrWhiteSpace(filterTag) ||
+             e.Tags.Any(t => t.Contains(filterTag, StringComparison.OrdinalIgnoreCase)))
+        );
+
+    void SelectEntry(JournalEntry entry)
+    {
+        selectedEntry = entry;
+    }
+
+    void RecalculateStreaks()
+    {
+        currentStreak = 0;
+        longestStreak = 0;
+        missedDays.Clear();
+
+        if (!entries.Any())
+            return;
+
+        var dates = entries
+            .Select(e => e.CreatedAt.Date)
+            .Distinct()
+            .OrderBy(d => d)
+            .ToList();
+
+        DateTime day = DateTime.Today;
+
+        while (dates.Contains(day))
+        {
+            currentStreak++;
+            day = day.AddDays(-1);
+        }
+
+        int streak = 1;
+
+        for (int i = 1; i < dates.Count; i++)
+        {
+            var diff = (dates[i] - dates[i - 1]).Days;
+
+            if (diff == 1)
+            {
+                streak++;
+            }
+            else
+            {
+                longestStreak = Math.Max(longestStreak, streak);
+                streak = 1;
+
+                for (int d = 1; d < diff; d++)
+                    missedDays.Add(dates[i - 1].AddDays(d));
+            }
+        }
+
+        longestStreak = Math.Max(longestStreak, streak);
+    }
+
+    class JournalEntry
+    {
+        public string Title { get; set; } = "";
+        public string Content { get; set; } = "";
+        public string PrimaryMood { get; set; } = "";
+        public string SecondaryMood1 { get; set; } = "";
+        public string SecondaryMood2 { get; set; } = "";
+        public List<string> Tags { get; set; } = new();
+        public DateTime CreatedAt { get; set; } = DateTime.Now;
+    }
+}
