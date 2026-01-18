@@ -1,148 +1,181 @@
-﻿@page "/calendar"
+﻿﻿@page "/calendar"
+@using MauiApp1.Models
+@using MauiApp1.Services
+@inject JournalService JService
+@inject AppState State
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@implements IDisposable
 
-<div class="calendar-container">
+<div class="min-h-screen p-4 md:p-8 transition-colors duration-300 @(State.IsDarkMode ? "bg-[#050505] text-white" : "bg-[#F8F9FA] text-slate-700")">
+    <div class="max-w-4xl mx-auto">
 
-    <div class="calendar-top">
-        <button @onclick="PrevMonth">❮</button>
-        <h2>@currentDate.ToString("MMMM yyyy")</h2>
-        <button @onclick="NextMonth">❯</button>
-    </div>
+        @* --- Calendar Header --- *@
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold">@currentMonth.ToString("MMMM yyyy")</h1>
+            <div class="flex gap-2">
+                <button @onclick="PrevMonth" class="p-2 rounded-lg hover:bg-white/10 border @(State.IsDarkMode ? "border-white/10" : "border-gray-200")">←</button>
+                <button @onclick="NextMonth" class="p-2 rounded-lg hover:bg-white/10 border @(State.IsDarkMode ? "border-white/10" : "border-gray-200")">→</button>
+            </div>
+        </div>
 
-    <div class="task-controls">
-        <input placeholder="Task Title" @bind="newTaskTitle" />
-
-        <input type="time" @bind="newTaskTime" />
-
-        <select @bind="selectedDay">
-            @for (int i = 1; i <= daysInMonth; i++)
+        @* --- Calendar Grid --- *@
+        <div class="grid grid-cols-7 gap-2">
+            @foreach (var day in daysOfWeek)
             {
-                <option value="@i">@i</option>
+                <div class="text-center font-bold text-xs uppercase tracking-widest text-gray-400 py-2">@day</div>
             }
-        </select>
 
-        <button @onclick="AddTask">Add Task</button>
+            @for (int i = 0; i < emptySlots; i++)
+            {
+                <div></div>
+            }
 
-        <select @onchange="SortTasks">
-            <option value="time">Sort by Time</option>
-            <option value="title">Sort by Title</option>
-        </select>
-    </div>
+            @foreach (var date in daysInMonth)
+            {
+                bool hasEntry = entryDates.Contains(date.Date);
+                <div @onclick="() => SelectDate(date)"
+                     class="relative h-20 md:h-24 border rounded-xl transition-all cursor-pointer
+                                @(State.IsDarkMode ? "border-white/5 hover:bg-white/5" : "border-gray-100 hover:bg-white")
+                                @(selectedDate == date ? "ring-2 ring-indigo-500 shadow-lg" : "")">
 
-    <div class="calendar-days">
-        @foreach (var day in dayNames)
-        {
-            <div class="day-name">@day</div>
-        }
+                    <span class="absolute top-2 left-3 text-sm font-medium">@date.Day</span>
 
-        @foreach (var _ in Enumerable.Range(0, startOffset))
-        {
-            <div class="day empty"></div>
-        }
-
-        @for (int day = 1; day <= daysInMonth; day++)
-        {
-            <div class="day @(IsToday(day) ? "today" : "")">
-                <span class="date">@day</span>
-
-                @if (Tasks.ContainsKey(day))
-                {
-                    @foreach (var task in Tasks[day])
+                    @if (hasEntry)
                     {
-                        <div class="task-card">
-                            <strong>@task.Time.ToString("HH:mm")</strong>
-                            - @task.Title
-                            <span class="remove-task"
-                                  @onclick="@(() => RemoveTask(day, task))">×</span>
+                        <div class="absolute inset-0 flex flex-col items-center justify-center mt-4">
+                            <div class="w-2.5 h-2.5 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.6)]"></div>
                         </div>
                     }
-                }
-            </div>
-        }
-    </div>
+                </div>
+            }
+        </div>
 
+        @* --- PREVIEW PANEL --- *@
+        <div class="flex justify-center mt-8">
+            @if (previewEntry != null)
+            {
+                <div class="w-full max-w-1xl p-6 rounded-2xl shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300
+                                @(State.IsDarkMode ? "bg-[#111111] border border-white/10" : "bg-white border border-gray-200")">
+
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="flex flex-col gap-2">
+                            <div class="flex items-center gap-3">
+                                @if (!string.IsNullOrEmpty(previewEntry.Category))
+                                {
+                                    <span class="w-fit px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-wider
+                                                         @(State.IsDarkMode ? "bg-indigo-500/20 text-indigo-300" : "bg-indigo-100 text-indigo-700")">
+                                        @GetCategoryEmoji(previewEntry.Category) @previewEntry.Category
+                                    </span>
+                                }
+                                <div class="flex gap-2">
+                                    <button @onclick="HandleEdit" class="p-2 rounded-lg bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500 hover:text-white transition-all">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <p class="text-xs font-bold text-gray-400 uppercase">@selectedDate?.ToString("MMMM dd, yyyy")</p>
+                            <h2 class="text-2xl font-bold">@previewEntry.Title</h2>
+                        </div>
+                    </div>
+
+                    @* ENHANCED MOOD DISPLAY *@
+                    <div class="flex flex-wrap gap-2 mb-6">
+                        @* Primary Positive Mood *@
+                        @if (!string.IsNullOrEmpty(previewEntry.PrimaryMood))
+                        {
+                            <span class="px-3 py-1.5 bg-emerald-500/10 text-emerald-500 text-[10px] font-bold rounded-full border border-emerald-500/30 flex items-center gap-1.5 shadow-sm">
+                                <span class="text-xs">Primary:</span> @GetMoodEmoji(previewEntry.PrimaryMood) @previewEntry.PrimaryMood
+                            </span>
+                        }
+
+                        @* Secondary Moods *@
+                        @if (!string.IsNullOrEmpty(previewEntry.SecondaryMoods))
+                        {
+                            @foreach (var mood in previewEntry.SecondaryMoods.Split(',', StringSplitOptions.RemoveEmptyEntries))
+                            {
+                                <span class="px-3 py-1.5 bg-gray-500/10 text-gray-400 text-[10px] font-medium rounded-full border border-gray-500/20 flex items-center gap-1.5">
+                                    @GetMoodEmoji(mood) @mood
+                                </span>
+                            }
+                        }
+                    </div>
+
+                    <div class="text-sm leading-relaxed @(State.IsDarkMode ? "text-gray-300" : "text-gray-600") break-words">
+                        <div class="@(contentExpanded ? "" : "line-clamp-3")">
+                            @((MarkupString)previewEntry.Content)
+                        </div>
+                        @if (!string.IsNullOrEmpty(previewEntry.Content) && previewEntry.Content.Length > 150)
+                        {
+                            <button @onclick="() => contentExpanded = !contentExpanded" class="mt-4 text-xs font-bold text-indigo-500 uppercase">
+                                @(contentExpanded ? "Show Less" : "Read More")
+                            </button>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
 </div>
 
 @code {
+    private DateTime currentMonth = DateTime.Now;
+    private DateTime? selectedDate;
+    private List<DateTime> daysInMonth = new();
+    private List<DateTime> entryDates = new();
+    private JournalEntry? previewEntry;
+    private int emptySlots = 0;
+    private string[] daysOfWeek = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+    private bool contentExpanded = false;
 
-    DateTime currentDate = DateTime.Now;
-
-    string[] dayNames = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
-
-    int daysInMonth => DateTime.DaysInMonth(currentDate.Year, currentDate.Month);
-
-    int startOffset =>
-        (int)new DateTime(currentDate.Year, currentDate.Month, 1).DayOfWeek;
-
-    bool IsToday(int day) =>
-        DateTime.Today.Year == currentDate.Year &&
-        DateTime.Today.Month == currentDate.Month &&
-        DateTime.Today.Day == day;
-
-    void NextMonth() => currentDate = currentDate.AddMonths(1);
-
-    void PrevMonth() => currentDate = currentDate.AddMonths(-1);
-
-    class TaskItem
+    protected override async Task OnInitializedAsync()
     {
-        public string Title { get; set; } = "";
-        public TimeOnly Time { get; set; }
+        State.OnChange += StateHasChanged;
+        await LoadCalendar();
     }
 
-    Dictionary<int, List<TaskItem>> Tasks = new();
-
-    string newTaskTitle = "";
-
-    TimeOnly? newTaskTime = new TimeOnly(12, 0);
-
-    int selectedDay = DateTime.Today.Day;
-
-    void AddTask()
+    private async Task LoadCalendar()
     {
-        if (string.IsNullOrWhiteSpace(newTaskTitle)) return;
-        if (newTaskTime is null) return;
-
-        if (!Tasks.ContainsKey(selectedDay))
-            Tasks[selectedDay] = new List<TaskItem>();
-
-        Tasks[selectedDay].Add(new TaskItem
-        {
-            Title = newTaskTitle,
-            Time = newTaskTime.Value
-        });
-
-        SortTasks("time");
-        newTaskTitle = "";
+        entryDates = await JService.GetEntryDates();
+        daysInMonth.Clear();
+        var firstDay = new DateTime(currentMonth.Year, currentMonth.Month, 1);
+        emptySlots = (int)firstDay.DayOfWeek;
+        for (int i = 0; i < DateTime.DaysInMonth(currentMonth.Year, currentMonth.Month); i++)
+            daysInMonth.Add(firstDay.AddDays(i));
     }
 
-    void RemoveTask(int day, TaskItem task)
+    private async Task SelectDate(DateTime date)
     {
-        Tasks[day].Remove(task);
-        if (Tasks[day].Count == 0)
-            Tasks.Remove(day);
+        selectedDate = date;
+        contentExpanded = false;
+        previewEntry = await JService.GetEntryByDate(date);
     }
 
-    void SortTasks(ChangeEventArgs e)
-    {
-        SortTasks(e.Value?.ToString() ?? "time");
-    }
+    private void HandleEdit() => Nav.NavigateTo($"/newentry/{previewEntry?.Id}");
+    private async Task NextMonth() { currentMonth = currentMonth.AddMonths(1); await LoadCalendar(); }
+    private async Task PrevMonth() { currentMonth = currentMonth.AddMonths(-1); await LoadCalendar(); }
 
-    void SortTasks(string sortBy)
+    private string GetCategoryEmoji(string cat) => cat switch { "Health" => "❤️", "Learning" => "📖", "Personal" => "👤", "Travel" => "✈️", "Work" => "💼", _ => "📁" };
+
+    private string GetMoodEmoji(string mood) => mood switch
     {
-        foreach (var key in Tasks.Keys.ToList())
-        {
-            if (sortBy == "title")
-            {
-                Tasks[key] = Tasks[key]
-                    .OrderBy(t => t.Title)
-                    .ToList();
-            }
-            else
-            {
-                Tasks[key] = Tasks[key]
-                    .OrderBy(t => t.Time.Hour)
-                    .ThenBy(t => t.Time.Minute)
-                    .ToList();
-            }
-        }
-    }
+        "Happy" => "😊",
+        "Excited" => "🤩",
+        "Relaxed" => "🧘",
+        "Grateful" => "🙏",
+        "Confident" => "💪",
+        "Calm" => "😌",
+        "Thoughtful" => "🤔",
+        "Curious" => "🧐",
+        "Nostalgic" => "⏳",
+        "Bored" => "😑",
+        "Sad" => "😢",
+        "Angry" => "😠",
+        "Stressed" => "😫",
+        "Lonely" => "👤",
+        "Anxious" => "😟",
+        _ => "✨"
+    };
+
+    public void Dispose() => State.OnChange -= StateHasChanged;
 }

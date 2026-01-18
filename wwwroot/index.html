@@ -3,28 +3,154 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>MauiApp1</title>
+    <title>Thought </title>
     <base href="/" />
-    <link rel="stylesheet" href="css/bootstrap/bootstrap.min.css" />
-    <link rel="stylesheet" href="css/app.css" />
-    <link rel="stylesheet" href="MauiApp1.styles.css" />
+    <link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class'
+        }
+    </script>
+    <link rel="stylesheet" href="app.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        @media print {
+            /* Hide everything except the export area */
+            body * {
+                visibility: hidden;
+            }
+
+            #export-area, #export-area * {
+                visibility: visible;
+            }
+
+            #export-area {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                border: none !important;
+                box-shadow: none !important;
+            }
+                /* Hide the Preview text during print */
+                #export-area h2 {
+                    display: none;
+                }
+        }
+    </style>
+
+    <script>
+        window.chartInstances = {};
+
+        function safeDestroy(id) {
+            if (window.chartInstances[id]) {
+                window.chartInstances[id].destroy();
+                delete window.chartInstances[id];
+            }
+        }
+
+        // Updated to handle both chart names commonly used in your dashboard
+        window.setupDashboardAnalytics = (moodLabels, moodData, trendLabels, trendData, isDark) => {
+            const textColor = isDark ? '#94a3b8' : '#64748b';
+            const gridColor = isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)';
+            const sentimentColors = ['#10b981', '#6366f1', '#f43f5e'];
+
+            // 1. Mood Chart (Sentiment Based)
+            // Checks for both potential IDs from your various versions
+            const moodId = document.getElementById('moodDoughnutChart') ? 'moodDoughnutChart' : 'moodSentimentChart';
+            if (document.getElementById(moodId)) {
+                safeDestroy(moodId);
+                window.chartInstances[moodId] = new Chart(document.getElementById(moodId), {
+                    type: 'doughnut',
+                    data: {
+                        labels: moodLabels,
+                        datasets: [{
+                            data: moodData,
+                            backgroundColor: sentimentColors,
+                            borderWidth: 0,
+                            hoverOffset: 15
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: { color: textColor, font: { size: 11, weight: '600' }, usePointStyle: true, padding: 20 }
+                            }
+                        },
+                        cutout: '75%'
+                    }
+                });
+            }
+
+            // 2. Writing Activity Chart
+            const trendId = document.getElementById('wordTrendChart') ? 'wordTrendChart' : 'writingActivityChart';
+            if (document.getElementById(trendId)) {
+                safeDestroy(trendId);
+                const ctxTrend = document.getElementById(trendId).getContext('2d');
+                const gradient = ctxTrend.createLinearGradient(0, 0, 0, 300);
+                gradient.addColorStop(0, 'rgba(99, 102, 241, 0.3)');
+                gradient.addColorStop(1, 'rgba(99, 102, 241, 0)');
+
+                window.chartInstances[trendId] = new Chart(ctxTrend, {
+                    type: 'line',
+                    data: {
+                        labels: trendLabels,
+                        datasets: [{
+                            label: 'Activity',
+                            data: trendData,
+                            borderColor: '#6366f1',
+                            borderWidth: 3,
+                            backgroundColor: gradient,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 4,
+                            pointBackgroundColor: '#6366f1'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: { grid: { color: gridColor }, ticks: { color: textColor, font: { size: 10 } } },
+                            x: { grid: { display: false }, ticks: { color: textColor, font: { size: 10 } } }
+                        },
+                        plugins: { legend: { display: false } }
+                    }
+                });
+            }
+        };
+
+        window.interopFunctions = {
+            executeCommand: function (cmd, val) {
+                document.execCommand(cmd, false, val);
+            },
+            getHtml: function (id) {
+                const el = document.getElementById(id);
+                return el ? el.innerHTML : "";
+            },
+            setHtml: function (id, html) {
+                const el = document.getElementById(id);
+                if (el) el.innerHTML = html || "";
+            }, // Added missing comma here
+            queryCommandState: function (command) {
+                return document.queryCommandState(command);
+            },
+            queryCommandValue: function (command) {
+                return document.queryCommandValue(command);
+            }
+        };
+    </script>
     <link rel="icon" href="data:,">
 </head>
-
 <body>
-
     <div class="status-bar-safe-area"></div>
-
     <div id="app">Loading...</div>
-
-    <div id="blazor-error-ui">
-        An unhandled error has occurred.
-        <a href="" class="reload">Reload</a>
-        <a class="dismiss">🗙</a>
-    </div>
-
     <script src="_framework/blazor.webview.js" autostart="false"></script>
-
 </body>
-
 </html>

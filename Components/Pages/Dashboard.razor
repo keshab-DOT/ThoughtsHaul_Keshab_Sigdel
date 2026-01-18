@@ -1,0 +1,208 @@
+﻿﻿@page "/"
+@using MauiApp1.Models
+@using MauiApp1.Services
+@inject JournalService JService
+@inject AppState State
+@inject <Component />@inject IJSRuntime JS@inject NavigationManager Nav
+@implements IDisposable
+
+<div class="flex h-screen font-sans transition-colors duration-300 @(State.IsDarkMode ? "bg-[#050505] text-white" : "bg-[#F8F9FA] text-slate-900")">
+    <main class="flex-1 flex flex-col min-w-0 h-full">
+
+        @* --- TOP NAVIGATION BAR --- *@
+        <header class="h-16 flex items-center justify-between px-8 shrink-0 border-b transition-colors duration-300 @(State.IsDarkMode ? "bg-[#0a0a0a] border-white/10" : "bg-white border-gray-100")">
+            <div class="flex items-center gap-6">
+                <button @onclick="State.ToggleDarkMode" class="p-2 text-slate-400 hover:bg-slate-50 rounded-lg transition-all dark:hover:bg-white/5">
+                    <i class="bi @(State.IsDarkMode ? "bi-moon-stars-fill text-indigo-400" : "bi-brightness-high")"></i>
+                </button>
+
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Show:</span>
+                    <select @onchange="OnRangeChanged" class="bg-transparent border-none text-xs font-bold focus:ring-0 cursor-pointer @(State.IsDarkMode ? "text-indigo-400" : "text-indigo-600")">
+                        <option value="7">Last 7 Days</option>
+                        <option value="30" selected>Last 30 Days</option>
+                        <option value="90">Last 90 Days</option>
+                    </select>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 text-slate-400">
+                <i class="bi bi-calendar3 text-xs"></i>
+                <span class="text-[11px] font-bold uppercase tracking-wider">@DateTime.Now.ToString("MMMM dd, yyyy")</span>
+            </div>
+        </header>
+
+        <div class="p-6 flex-1 flex flex-col">
+            @* --- HEADER SECTION --- *@
+            <div class="flex justify-between items-end mb-6 shrink-0">
+                <div>
+                    <h2 class="text-3xl font-black"> ThoughsHaul Analytics</h2>
+                    <p class="text-slate-500 text-sm">Visualizing your journey over the last @selectedDays days.</p>
+                </div>
+                <button @onclick='() => Nav.NavigateTo("newentry")' class="px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:scale-105 transition-all @(State.IsDarkMode ? "bg-indigo-600 text-white shadow-indigo-500/20" : "bg-black text-white")">
+                    <i class="bi bi-plus-lg"></i> New Entry
+                </button>
+            </div>
+
+            @* --- STATS ROW --- *@
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                @StatCard("Current Streak", $"{stats.CurrentStreak} Days", "Consistency is key!", "bi-fire", "text-orange-500")
+                @StatCard("Best Streak", $"{stats.LongestStreak} Days", "Your ultimate record.", "bi-trophy", "text-yellow-500")
+                @StatCard("Avg. Words", $"{stats.AverageWords}", "Writing depth.", "bi-pencil-square", "text-blue-500")
+                @StatCard("Days Missed", $"{analyticsData.MissedDaysCount}", "Gaps in your ink.", "bi-calendar-x", "text-rose-500")
+            </div>
+
+            @* --- MAIN CHARTS --- *@
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                <div class="lg:col-span-1 p-6 rounded-[28px] border @(State.IsDarkMode ? "bg-[#0a0a0a] border-white/10" : "bg-white border-gray-100 shadow-sm")">
+                    <h4 class="font-bold text-sm mb-6">Mood Sentiment (%)</h4>
+                    <div class="h-64 relative">
+                        @* Chart.js renders the Negative, Neutral, and Positive slices here *@
+                        <canvas id="moodDoughnutChart"></canvas>
+                    </div>
+                    <div class="mt-6 pt-4 border-t border-dashed border-slate-700/20">
+                        <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Dominant Mood</p>
+                        @* Updated color logic to include Rose-500 for Negative moods *@
+                        <p class="text-lg font-black @GetMoodColor(analyticsData.MostFrequentMood)">@analyticsData.MostFrequentMood</p>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-2 p-6 rounded-[28px] border @(State.IsDarkMode ? "bg-[#0a0a0a] border-white/10" : "bg-white border-gray-100 shadow-sm")">
+                    <h4 class="font-bold text-sm mb-6">Writing Activity (Words)</h4>
+                    <div class="h-[320px] relative">
+                        <canvas id="wordTrendChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            @* --- TAGS & CATEGORIES --- *@
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="p-6 rounded-[28px] border @(State.IsDarkMode ? "bg-[#0a0a0a] border-white/10" : "bg-white border-gray-100")">
+                    <h4 class="font-bold text-sm mb-4">Category Frequency</h4>
+                    <div class="space-y-4">
+                        @foreach (var cat in analyticsData.CategoryBreakdown)
+                        {
+                            <div>
+                                <div class="flex justify-between text-[10px] font-bold mb-1 uppercase">
+                                    <span>@cat.Key</span>
+                                    <span>@cat.Value%</span>
+                                </div>
+                                <div class="w-full h-2 bg-slate-200 dark:bg-white/5 rounded-full overflow-hidden">
+                                    <div class="h-full bg-indigo-500 rounded-full" style="width: @(cat.Value)%"></div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <div class="p-6 rounded-[28px] border @(State.IsDarkMode ? "bg-[#0a0a0a] border-white/10" : "bg-white border-gray-100")">
+                    <h4 class="font-bold text-sm mb-4">Top Tags</h4>
+                    <div class="flex flex-wrap gap-2">
+                        @foreach (var tag in analyticsData.TopTags)
+                        {
+                            <div class="px-4 py-2 rounded-xl @(State.IsDarkMode ? "bg-indigo-500/10 border-indigo-500/20" : "bg-slate-50 border-slate-200") border">
+                                <span class="text-xs font-bold text-indigo-500">#@tag.Key</span>
+                                <span class="text-[10px] ml-1 text-slate-400 font-medium">×@tag.Value</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            @* --- MISSED DAYS TRACKER --- *@
+            @if (analyticsData.MissedDates.Any())
+            {
+                <div class="mt-6 p-6 rounded-[28px] border border-rose-500/20 bg-rose-500/5">
+                    <h4 class="text-rose-500 font-bold text-sm mb-4">Missed Days Tracker</h4>
+                    <div class="flex flex-wrap gap-3">
+                        @foreach (var date in analyticsData.MissedDates.Take(14))
+                        {
+                            <div class="flex flex-col items-center">
+                                <div class="w-10 h-10 rounded-full border-2 border-rose-500/20 flex items-center justify-center text-[10px] font-black text-rose-500 bg-white dark:bg-black">
+                                    @date.Day
+                                </div>
+                                <span class="text-[8px] font-bold uppercase mt-1 text-slate-500">@date.ToString("MMM")</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </main>
+</div>
+
+@code {
+    private DashboardStats stats = new();
+    private AnalyticsData analyticsData = new();
+    private int selectedDays = 30;
+    private bool shouldUpdateCharts = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        State.OnChange += StateHasChanged;
+        if (!Auth.IsLoggedIn) { Nav.NavigateTo("/login"); return; }
+        await RefreshData();
+    }
+
+    private async Task RefreshData()
+    {
+        stats = await JService.GetDashboardStats(selectedDays);
+        analyticsData = await JService.GetAnalyticsData(selectedDays);
+        shouldUpdateCharts = true;
+        StateHasChanged();
+    }
+
+    private async Task OnRangeChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int days))
+        {
+            selectedDays = days;
+            await RefreshData();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (shouldUpdateCharts)
+        {
+            shouldUpdateCharts = false;
+            await Task.Delay(150);
+
+            // Ensure your JS function "setupDashboardAnalytics" handles three data points
+            // for Sentiment: [PositiveCount, NeutralCount, NegativeCount]
+            await JS.InvokeVoidAsync("setupDashboardAnalytics",
+                analyticsData.SentimentLabels, analyticsData.SentimentCounts,
+                analyticsData.TrendLabels, analyticsData.TrendCounts,
+                State.IsDarkMode);
+        }
+    }
+
+    // UPDATED: Logic to specifically identify Negative moods to color the "Dominant Mood" text
+    private string GetMoodColor(string mood)
+    {
+        if (string.IsNullOrEmpty(mood) || mood == "No Data") return "text-slate-400";
+
+        var pos = new[] { "Happy", "Excited", "Relaxed", "Grateful", "Confident" };
+        var neu = new[] { "Calm", "Thoughtful", "Focused", "Nostalgic", "Bored" };
+        var neg = new[] { "Sad", "Angry", "Stressed", "Lonely", "Anxious" };
+
+        if (pos.Contains(mood)) return "text-emerald-500";
+        if (neu.Contains(mood)) return "text-indigo-500";
+        if (neg.Contains(mood)) return "text-rose-500"; // Explicitly Rose for negative
+
+        return "text-slate-400";
+    }
+
+    public void Dispose() => State.OnChange -= StateHasChanged;
+
+    RenderFragment StatCard(string title, string value, string subtitle, string icon, string iconColor) => __builder =>
+    {
+        <div class="p-5 rounded-[24px] border transition-all hover:translate-y-[-2px] @(State.IsDarkMode ? "bg-[#0a0a0a] border-white/10 shadow-xl" : "bg-white border-gray-100 shadow-sm")">
+            <div class="flex justify-between items-start mb-2">
+                <h5 class="text-[10px] font-black text-slate-400 uppercase tracking-widest">@title</h5>
+                <i class="bi @icon @iconColor"></i>
+            </div>
+            <p class="text-2xl font-black">@value</p>
+            <p class="text-[10px] text-slate-500 font-medium">@subtitle</p>
+        </div>
+    };
+}
