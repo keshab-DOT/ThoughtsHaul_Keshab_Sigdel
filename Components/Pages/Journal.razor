@@ -1,223 +1,254 @@
 ﻿@page "/journal"
+@using MauiApp1.Models
+@using MauiApp1.Services
+@inject JournalService JService
+@inject AuthService Auth
+@inject AppState State
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@implements IDisposable
 
-<div class="journal-container">
-    <h2>Daily Journal</h2>
+<div class="min-h-screen transition-colors duration-500 @(State.IsDarkMode ? "bg-[#050505] text-slate-100" : "bg-[#fcfcfd] text-slate-900")">
 
-    <div class="streak-box">
-        <div class="streak-item">
-            <h4>Current Streak</h4>
-            <p>@currentStreak day(s)</p>
+    @* --- TOP HEADER --- *@
+    <header class="sticky top-0 z-30 border-b @(State.IsDarkMode ? "bg-black/40 border-white/5" : "bg-white/60 border-slate-100") backdrop-blur-xl px-8 py-6">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div>
+                <h1 class="text-4xl font-black tracking-tighter">Archive</h1>
+                <p class="text-[10px] uppercase tracking-[0.3em] text-indigo-500 font-black">Your Digital Life Story</p>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <div class="relative group">
+                    <i class="bi bi-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <input type="text" @bind="tempSearchQuery" @bind:event="oninput" @onkeyup="ApplyFilters"
+                           placeholder="Search memories..."
+                           class="pl-11 pr-4 py-3 rounded-2xl w-64 text-sm transition-all outline-none border
+                                  @(State.IsDarkMode ? "bg-white/5 border-white/10 focus:bg-white/10" : "bg-slate-100 border-transparent focus:bg-white focus:border-indigo-500")" />
+                </div>
+
+                <button @onclick="() => showFilterPanel = !showFilterPanel"
+                        class="p-3 rounded-2xl border @(showFilterPanel ? "bg-indigo-600 border-indigo-600 text-white" : (State.IsDarkMode ? "border-white/10 hover:bg-white/5" : "border-slate-200 hover:bg-slate-50")) transition-all">
+                    <i class="bi bi-sliders2"></i>
+                </button>
+
+                <button @onclick='() => Nav.NavigateTo("/newentry")'
+                        class="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-indigo-500/20 active:scale-95">
+                    New Entry
+                </button>
+            </div>
         </div>
+    </header>
 
-        <div class="streak-item">
-            <h4>Longest Streak</h4>
-            <p>@longestStreak day(s)</p>
-        </div>
+    <div class="max-w-7xl mx-auto px-8 py-10">
 
-        <div class="streak-item">
-            <h4>Missed Days</h4>
-            <p>@(missedDays.Count == 0 ? "None 🎉" : string.Join(", ", missedDays.Select(d => d.ToString("dd MMM"))))</p>
-        </div>
-    </div>
-
-    <div class="journal-form">
-        <input placeholder="Journal Title" @bind="newEntry.Title" />
-        <textarea placeholder="Write journal..." @bind="newEntry.Content"></textarea>
-
-        <div class="row">
-            <select @bind="newEntry.PrimaryMood">
-                <option value="">Primary Mood</option>
-                @foreach (var mood in moods)
-                {
-                    <option>@mood</option>
-                }
-            </select>
-
-            <select @bind="newEntry.SecondaryMood1">
-                <option value="">Secondary Mood</option>
-                @foreach (var mood in moods)
-                {
-                    <option>@mood</option>
-                }
-            </select>
-
-            <select @bind="newEntry.SecondaryMood2">
-                <option value="">Secondary Mood</option>
-                @foreach (var mood in moods)
-                {
-                    <option>@mood</option>
-                }
-            </select>
-        </div>
-
-        <input placeholder="Tags (comma separated)" @bind="tagInput" />
-        <button @onclick="SaveEntry">Save</button>
-    </div>
-
-    <div class="filter-box">
-        <input placeholder="Search title or content..." @bind="searchText" />
-        <input type="date" @bind="filterDate" />
-
-        <select @bind="filterMood">
-            <option value="">Filter by Mood</option>
-            @foreach (var mood in moods)
-            {
-                <option>@mood</option>
-            }
-        </select>
-
-        <input placeholder="Filter by Tag" @bind="filterTag" />
-    </div>
-
-    <div class="journal-list">
-        @foreach (var entry in FilteredEntries)
+        @* --- ACTIVE FILTERS BAR --- *@
+        @if (selectedMoods.Any() || selectedTags.Any() || startDate.HasValue)
         {
-            <div class="entry-card" @onclick="@(() => SelectEntry(entry))">
-                <h4>@entry.Title</h4>
-                <p>@entry.CreatedAt.ToString("dd MMM yyyy")</p>
-                <span>@entry.PrimaryMood</span>
+            <div class="flex flex-wrap gap-2 mb-8 animate-in slide-in-from-top-2 duration-300">
+                @foreach (var m in selectedMoods)
+                {
+                    <span @onclick="() => ToggleMoodFilter(m)" class="px-3 py-1 bg-indigo-500 text-white text-[10px] font-bold rounded-full cursor-pointer">@m ×</span>
+                }
+                @foreach (var t in selectedTags)
+                {
+                    <span @onclick="() => ToggleTagFilter(t)" class="px-3 py-1 bg-emerald-500 text-white text-[10px] font-bold rounded-full cursor-pointer">#@t ×</span>
+                }
+                <button @onclick="ClearFilters" class="text-[10px] font-black uppercase text-rose-500 hover:underline px-2">Clear All</button>
             </div>
         }
-    </div>
 
-    @if (selectedEntry != null)
-    {
-        <div class="journal-view">
-            <h3>@selectedEntry.Title</h3>
-            <p class="date">@selectedEntry.CreatedAt.ToString("dd MMM yyyy")</p>
-            <p>@selectedEntry.Content</p>
+        <div class="flex flex-col lg:flex-row gap-10">
 
-            <div class="meta">
-                <span>Mood: @selectedEntry.PrimaryMood</span>
-                <span>Tags: @string.Join(", ", selectedEntry.Tags)</span>
+            @* --- SIDEBAR FILTERS (DESKTOP) --- *@
+            @if (showFilterPanel)
+            {
+                <aside class="w-full lg:w-64 space-y-8 animate-in fade-in slide-in-from-left-4 duration-500">
+                    <div>
+                        <label class="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-4">Date Range</label>
+                        <div class="space-y-2">
+                            <input type="date" @bind="startDate" class="w-full bg-transparent border-b @(State.IsDarkMode ? "border-white/10" : "border-slate-200") py-1 text-xs outline-none" />
+                            <input type="date" @bind="endDate" class="w-full bg-transparent border-b @(State.IsDarkMode ? "border-white/10" : "border-slate-200") py-1 text-xs outline-none" />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-4">Moods</label>
+                        <div class="flex flex-wrap gap-2">
+                            @foreach (var mood in availableMoods)
+                            {
+                                <button @onclick="() => ToggleMoodFilter(mood)"
+                                        class="px-3 py-1.5 rounded-xl border text-[10px] font-bold transition-all
+                                                       @(selectedMoods.Contains(mood) ? "bg-indigo-600 border-indigo-600 text-white" : "border-slate-200 text-slate-400")">
+                                    @GetMoodEmoji(mood) @mood
+                                </button>
+                            }
+                        </div>
+                    </div>
+                </aside>
+            }
+
+            @* --- MAIN GRID --- *@
+            <div class="flex-1">
+                @if (allEntries == null)
+                {
+                    <div class="flex flex-col items-center justify-center py-20 opacity-50">
+                        <div class="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin mb-4"></div>
+                        <p class="text-xs font-black uppercase tracking-widest">Loading Archive...</p>
+                    </div>
+                }
+                else if (!FilteredEntries.Any())
+                {
+                    <div class="text-center py-40 bg-white/5 rounded-[40px] border border-dashed border-white/10">
+                        <i class="bi bi-journal-x text-5xl text-slate-200 mb-4 block"></i>
+                        <h3 class="text-xl font-bold">No matches found</h3>
+                        <p class="text-sm text-slate-400">Try adjusting your filters or search terms.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        @foreach (var entry in FilteredEntries)
+                        {
+                            <div class="group relative p-8 rounded-[40px] border transition-all duration-500
+                                                @(State.IsDarkMode ? "bg-white/[0.03] border-white/5 hover:bg-white/[0.06]" : "bg-white border-slate-100 hover:shadow-2xl hover:shadow-indigo-500/5 hover:border-indigo-100")">
+
+                                @* Card Header *@
+                                <div class="flex justify-between items-start mb-6">
+                                    <div class="space-y-1">
+                                        <p class="text-[10px] font-black text-indigo-500 uppercase tracking-widest">@entry.EntryDate.ToString("ddd, MMM dd yyyy")</p>
+                                        <h2 class="text-2xl font-black tracking-tighter group-hover:text-indigo-500 transition-colors">
+                                            @(string.IsNullOrWhiteSpace(entry.Title) ? "Untitled" : entry.Title)
+                                        </h2>
+                                    </div>
+                                    <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button @onclick='() => Nav.NavigateTo($"/newentry/{entry.Id}")' class="p-2 rounded-xl hover:bg-indigo-500 hover:text-white transition-all text-slate-400"><i class="bi bi-pencil-square"></i></button>
+                                        <button @onclick="() => ConfirmDelete(entry.Id)" class="p-2 rounded-xl hover:bg-rose-500 hover:text-white transition-all text-slate-400"><i class="bi bi-trash3"></i></button>
+                                    </div>
+                                </div>
+
+                                @* Mood Indicators (The 1 + 2 logic) *@
+                                <div class="flex flex-wrap gap-2 mb-6">
+                                    @* Primary *@
+                                    <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border @GetMoodStyle(entry.PrimaryMood, true)">
+                                        @GetMoodEmoji(entry.PrimaryMood) @entry.PrimaryMood
+                                    </span>
+
+                                    @* Secondary *@
+                                    @if (!string.IsNullOrEmpty(entry.SecondaryMoods))
+                                    {
+                                        @foreach (var sm in entry.SecondaryMoods.Split(','))
+                                        {
+                                            <span class="px-3 py-1 rounded-full text-[9px] font-bold border @GetMoodStyle(sm, false)">
+                                                @GetMoodEmoji(sm) @sm
+                                            </span>
+                                        }
+                                    }
+                                </div>
+
+                                @* Body Content *@
+                                <div class="text-sm leading-relaxed text-slate-500 dark:text-slate-400 mb-8 line-clamp-3">
+                                    @((MarkupString)entry.Content)
+                                </div>
+
+                                @* Footer *@
+                                <div class="flex items-center justify-between mt-auto pt-6 border-t @(State.IsDarkMode ? "border-white/5" : "border-slate-50")">
+                                    <div class="flex gap-2">
+                                        @if (!string.IsNullOrEmpty(entry.Tags))
+                                        {
+                                            @foreach (var tag in entry.Tags.Split(',').Take(3))
+                                            {
+                                                <span class="text-[9px] font-black text-slate-400 uppercase tracking-tighter">#@tag</span>
+                                            }
+                                        }
+                                    </div>
+                                    <span class="text-[9px] font-black uppercase text-indigo-500/50">@entry.Category</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
             </div>
         </div>
-    }
+    </div>
 </div>
 
-@code {
+<style>
+    .line-clamp-3 {
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+</style>
 
-    List<string> moods = new()
+@code {
+    private List<JournalEntry>? allEntries;
+    private bool showFilterPanel = true;
+    private string tempSearchQuery = "";
+    private DateTime? startDate;
+    private DateTime? endDate;
+    private List<string> selectedMoods = new();
+    private List<string> selectedTags = new();
+
+    private List<string> availableMoods = new() { "Happy", "Excited", "Relaxed", "Anxious", "Thoughtful", "Sad", "Calm", "Grateful", "Confident", "Stressed" };
+    private List<string> availableTags = new() { "Personal", "Work", "Health", "Learning", "Travel" };
+
+    private IEnumerable<JournalEntry> FilteredEntries =>
+        (allEntries ?? new List<JournalEntry>()).Where(e =>
+            (string.IsNullOrWhiteSpace(tempSearchQuery) ||
+             (e.Title?.Contains(tempSearchQuery, StringComparison.OrdinalIgnoreCase) ?? false) ||
+             (e.Content?.Contains(tempSearchQuery, StringComparison.OrdinalIgnoreCase) ?? false)) &&
+            (!selectedMoods.Any() || selectedMoods.Contains(e.PrimaryMood) || (e.SecondaryMoods != null && selectedMoods.Any(sm => e.SecondaryMoods.Contains(sm)))) &&
+            (!startDate.HasValue || e.EntryDate.Date >= startDate.Value.Date) &&
+            (!endDate.HasValue || e.EntryDate.Date <= endDate.Value.Date)
+        ).OrderByDescending(e => e.EntryDate);
+
+    protected override async Task OnInitializedAsync()
     {
-        "Happy","Excited","Relaxed","Calm",
-        "Sad","Stressed","Anxious"
+        State.OnChange += StateHasChanged;
+        await RefreshList();
+    }
+
+    private async Task RefreshList()
+    {
+        if (Auth.IsLoggedIn) allEntries = await JService.GetAllEntries();
+    }
+
+    private void ToggleMoodFilter(string mood) { if (!selectedMoods.Remove(mood)) selectedMoods.Add(mood); }
+    private void ToggleTagFilter(string tag) { if (!selectedTags.Remove(tag)) selectedTags.Add(tag); }
+    private void ApplyFilters() => StateHasChanged();
+    private void ClearFilters() { tempSearchQuery = ""; selectedMoods.Clear(); selectedTags.Clear(); startDate = null; endDate = null; }
+
+    private async Task ConfirmDelete(int id)
+    {
+        if (await JS.InvokeAsync<bool>("confirm", "Delete this memory forever?"))
+        {
+            await JService.DeleteEntry(id);
+            await RefreshList();
+        }
+    }
+
+    private string GetMoodStyle(string mood, bool isPrimary)
+    {
+        if (isPrimary) return State.IsDarkMode ? "bg-indigo-500/20 border-indigo-500/30 text-indigo-400" : "bg-indigo-50 border-indigo-100 text-indigo-600";
+        return State.IsDarkMode ? "bg-white/5 border-white/10 text-slate-400" : "bg-slate-50 border-slate-100 text-slate-500";
+    }
+
+    private string GetMoodEmoji(string mood) => mood switch
+    {
+        "Happy" => "😊",
+        "Excited" => "🤩",
+        "Relaxed" => "🧘",
+        "Grateful" => "🙏",
+        "Confident" => "💪",
+        "Calm" => "😌",
+        "Thoughtful" => "🤔",
+        "Sad" => "😢",
+        "Stressed" => "😫",
+        "Anxious" => "😟",
+        _ => "📝"
     };
 
-    List<JournalEntry> entries = new();
-
-    JournalEntry newEntry = new();
-
-    JournalEntry? selectedEntry;
-
-    string tagInput = "";
-    string searchText = "";
-    string filterMood = "";
-    string filterTag = "";
-    DateTime? filterDate;
-
-    int currentStreak = 0;
-    int longestStreak = 0;
-    List<DateTime> missedDays = new();
-
-    void SaveEntry()
-    {
-        if (string.IsNullOrWhiteSpace(newEntry.Content))
-            return;
-
-        var existing = entries.FirstOrDefault(e => e.CreatedAt.Date == DateTime.Today);
-        if (existing != null)
-            entries.Remove(existing);
-
-        newEntry.CreatedAt = DateTime.Now;
-        newEntry.Tags = tagInput
-            .Split(',', StringSplitOptions.RemoveEmptyEntries)
-            .Select(t => t.Trim())
-            .ToList();
-
-        entries.Add(newEntry);
-        entries = entries
-            .OrderByDescending(e => e.CreatedAt)
-            .ToList();
-
-        newEntry = new JournalEntry();
-        tagInput = "";
-
-        RecalculateStreaks();
-    }
-
-    IEnumerable<JournalEntry> FilteredEntries =>
-        entries.Where(e =>
-            (string.IsNullOrWhiteSpace(searchText) ||
-             e.Title.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
-             e.Content.Contains(searchText, StringComparison.OrdinalIgnoreCase)) &&
-            (!filterDate.HasValue || e.CreatedAt.Date == filterDate.Value.Date) &&
-            (string.IsNullOrWhiteSpace(filterMood) ||
-             e.PrimaryMood == filterMood ||
-             e.SecondaryMood1 == filterMood ||
-             e.SecondaryMood2 == filterMood) &&
-            (string.IsNullOrWhiteSpace(filterTag) ||
-             e.Tags.Any(t => t.Contains(filterTag, StringComparison.OrdinalIgnoreCase)))
-        );
-
-    void SelectEntry(JournalEntry entry)
-    {
-        selectedEntry = entry;
-    }
-
-    void RecalculateStreaks()
-    {
-        currentStreak = 0;
-        longestStreak = 0;
-        missedDays.Clear();
-
-        if (!entries.Any())
-            return;
-
-        var dates = entries
-            .Select(e => e.CreatedAt.Date)
-            .Distinct()
-            .OrderBy(d => d)
-            .ToList();
-
-        DateTime day = DateTime.Today;
-
-        while (dates.Contains(day))
-        {
-            currentStreak++;
-            day = day.AddDays(-1);
-        }
-
-        int streak = 1;
-
-        for (int i = 1; i < dates.Count; i++)
-        {
-            var diff = (dates[i] - dates[i - 1]).Days;
-
-            if (diff == 1)
-            {
-                streak++;
-            }
-            else
-            {
-                longestStreak = Math.Max(longestStreak, streak);
-                streak = 1;
-
-                for (int d = 1; d < diff; d++)
-                    missedDays.Add(dates[i - 1].AddDays(d));
-            }
-        }
-
-        longestStreak = Math.Max(longestStreak, streak);
-    }
-
-    class JournalEntry
-    {
-        public string Title { get; set; } = "";
-        public string Content { get; set; } = "";
-        public string PrimaryMood { get; set; } = "";
-        public string SecondaryMood1 { get; set; } = "";
-        public string SecondaryMood2 { get; set; } = "";
-        public List<string> Tags { get; set; } = new();
-        public DateTime CreatedAt { get; set; } = DateTime.Now;
-    }
+    public void Dispose() => State.OnChange -= StateHasChanged;
 }

@@ -1,65 +1,80 @@
 ﻿@inherits LayoutComponentBase
+@using MauiApp1.Services
+@inject AuthService AuthService
+@inject NavigationManager Nav
+@inject AppState State
+@implements IDisposable
 
-<div class="layout @(IsDarkMode ? "dark-theme" : "light-theme")">
-    <div class="layout-wrapper">
-        <aside class="sidebar">
-            <a class="navbar-brand logo" href="/">
-                Thoughs<span class="logo-accent">Haul</span>
-            </a>
+<PageTitle>Thought Haul</PageTitle>
 
-            <nav class="nav flex-column nav-scrollable">
-                <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                    <span class="bi bi-house-door-fill"></span> Home
-                </NavLink>
 
-                <NavLink class="nav-link" href="journal">
-                    <span class="bi bi-pencil-square"></span> Journal
-                </NavLink>
+<div class="@(State.IsDarkMode ? "dark-theme dark" : "light-theme")">
 
-                <NavLink class="nav-link" href="calendar">
-                    <span class="bi bi-calendar3"></span> Calendar
-                </NavLink>
-            </nav>
+    <div class="min-h-screen @(State.IsDarkMode ? "bg-[#050505]" : "bg-[#F8F9FA]") transition-colors duration-500">
 
-            <div class="sidebar-footer">
-                <NavLink class="nav-link" href="profile">
-                    <span class="bi bi-person-circle"></span> Profile
-                </NavLink>
+        <div class="flex h-screen overflow-hidden">
 
-                <NavLink class="nav-link" href="settings">
-                    <span class="bi bi-gear-fill"></span> Settings
-                </NavLink>
+            @if (AuthService.IsLoggedIn)
+            {
+                <aside class="w-64 h-full flex-shrink-0">
+                    <NavMenu />
+                </aside>
+            }
 
-                <button class="btn-logout-nav" @onclick="HandleLogout">
-                    <span class="bi bi-box-arrow-right"></span> Logout
-                </button>
-            </div>
-        </aside>
+            <main class="flex-1 flex flex-col overflow-hidden">
 
-        <main class="main-content">
-            <header class="top-nav">
-                <input class="search-bar" placeholder="Search..." />
+                @if (AuthService.IsLoggedIn)
+                {
+                    @* Glass Header with White Glow Elements *@
+                    <header class="h-16 @(State.IsDarkMode ? "bg-[#050505]/80 border-white/10" : "bg-white border-gray-100") backdrop-blur-md border-b flex items-center justify-between px-8 z-50 sticky top-0">
 
-                <div class="header-actions">
-                    <button class="btn-theme-toggle" @onclick="ToggleTheme">
-                        @(IsDarkMode ? "Light" : "Dark")
-                    </button>
-                    <button class="btn-register">Register</button>
-                    <button class="btn-login">Login</button>
+                        <div class="flex items-center">
+                            <div class="p-2 bg-indigo-600 rounded-lg text-white shadow-[0_0_15px_rgba(99,102,241,0.5)]">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                            </div>
+                        </div>
+
+                        <div class="flex-1 max-w-md mx-8">
+                            <div class="relative group">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-4">
+                            <button @onclick="State.ToggleDarkMode"
+                                    type="button"
+                                    class="p-2 border @(State.IsDarkMode ? "border-white/10 text-yellow-400" : "border-gray-200 text-gray-600") rounded-lg transition-all active:scale-95">
+                                @if (State.IsDarkMode)
+                                {
+                                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"></path></svg>
+                                }
+                                else
+                                {
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                                }
+                            </button>
+                        </div>
+                    </header>
+                }
+
+                <div class="flex-1 overflow-y-auto bg-inherit @(AuthService.IsLoggedIn ? "p-8 max-w-6xl mx-auto w-full" : "")">
+                    <div class="@(State.IsDarkMode ? "text-white" : "text-black")">
+                        @Body
+                    </div>
                 </div>
-            </header>
-
-            <div class="content-area">
-                @Body
-            </div>
-        </main>
+            </main>
+        </div>
     </div>
 </div>
 
 @code {
-    bool IsDarkMode;
-
-    void ToggleTheme() => IsDarkMode = !IsDarkMode;
-
-    void HandleLogout() { }
+    protected override void OnInitialized()
+    {
+        State.OnChange += StateHasChanged;
+        if (!AuthService.IsLoggedIn && !Nav.Uri.Contains("login") && !Nav.Uri.Contains("register"))
+            Nav.NavigateTo("/login");
+    }
+    public void Dispose() => State.OnChange -= StateHasChanged;
 }

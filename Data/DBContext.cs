@@ -11,11 +11,12 @@ namespace MauiApp1.Data
         {
             var folder = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "ThoughsHaul"
+                "Thoughtsaul"
             );
 
             Directory.CreateDirectory(folder);
-            _dbPath = Path.Combine(folder, "ThoughsHaul_app.db");
+            _dbPath = Path.Combine(folder, "lifeink_app.db");
+
             Initialize();
         }
 
@@ -24,7 +25,9 @@ namespace MauiApp1.Data
             using var connection = GetConnection();
             connection.Open();
 
-            var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
+
+            // 1️⃣ Create tables (fresh installs)
             command.CommandText =
             """
             CREATE TABLE IF NOT EXISTS Users (
@@ -35,8 +38,10 @@ namespace MauiApp1.Data
 
             CREATE TABLE IF NOT EXISTS JournalEntries (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                UserId INTEGER,
                 Title TEXT,
                 Content TEXT,
+                Category TEXT,
                 EntryDate TEXT UNIQUE NOT NULL,
                 PrimaryMood TEXT,
                 SecondaryMoods TEXT,
@@ -49,9 +54,33 @@ namespace MauiApp1.Data
                 TagName TEXT PRIMARY KEY
             );
             """;
+
             command.ExecuteNonQuery();
+
+            // 2️⃣ MIGRATION: Add Category if DB already exists
+            TryAddColumn(connection, "JournalEntries", "Category", "TEXT");
         }
 
-        public SqliteConnection GetConnection() => new SqliteConnection($"Data Source={_dbPath}");
+        private void TryAddColumn(
+            SqliteConnection connection,
+            string table,
+            string column,
+            string type
+        )
+        {
+            try
+            {
+                using var cmd = connection.CreateCommand();
+                cmd.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {type};";
+                cmd.ExecuteNonQuery();
+            }
+            catch
+            {
+                // Column already exists → ignore
+            }
+        }
+
+        public SqliteConnection GetConnection()
+            => new SqliteConnection($"Data Source={_dbPath}");
     }
 }

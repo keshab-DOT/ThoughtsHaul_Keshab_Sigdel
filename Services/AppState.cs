@@ -6,6 +6,7 @@ public class AppState
     public string SearchQuery { get; set; } = "";
 
     public event Action OnChange;
+    public void Notify() => OnChange?.Invoke();
 
     public void ToggleDarkMode()
     {

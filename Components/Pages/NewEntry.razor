@@ -1,0 +1,400 @@
+﻿@page "/newentry"
+@page "/newentry/{Id:int}"
+@using MauiApp1.Models
+@using MauiApp1.Services
+@inject JournalService JService
+@inject IJSRuntime JS
+@inject AppState State
+@inject NavigationManager Nav
+@implements IDisposable
+
+<div class="relative min-h-screen flex flex-col font-sans transition-colors duration-500 @(State.IsDarkMode ? "bg-[#050505] text-slate-100" : "bg-[#fcfcfd] text-slate-900")">
+
+    @* --- TOAST NOTIFICATION --- *@
+    @if (showToast)
+    {
+        <div class="fixed top-8 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top-4 duration-500">
+            <div class="flex items-center gap-3 px-6 py-3 bg-indigo-600 text-white rounded-2xl shadow-2xl shadow-indigo-500/40">
+                <i class="bi bi-check-circle-fill"></i>
+                <span class="text-sm font-bold tracking-tight">Entry Preserved.</span>
+            </div>
+        </div>
+    }
+
+    @* --- TOP NAVIGATION BAR --- *@
+    <header class="flex items-center justify-between px-8 py-4 border-b @(State.IsDarkMode ? "border-white/5 bg-black/20" : "border-slate-100 bg-white/50") backdrop-blur-md sticky top-0 z-40">
+        <div class="flex items-center gap-4">
+            <button @onclick='() => Nav.NavigateTo("/journal")' class="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-white/5 transition-all text-slate-400">
+                <i class="bi bi-chevron-left"></i>
+            </button>
+            <div>
+                <h1 class="text-lg font-black tracking-tighter">@(Id.HasValue ? "Edit Journal Entry" : "Today's Journal Entry")</h1>
+                <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">@DateTime.Today.ToString("dddd, dd MMMM")</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <button @onclick="HandleDelete" class="px-4 py-2 text-xs font-black uppercase tracking-widest text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all">
+                @(Id.HasValue ? "Delete" : "Clear")
+            </button>
+            <button @onclick="HandleSave" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-500/20 active:scale-95">
+                @(Id.HasValue ? "Update Entry" : "Save Entry")
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 flex flex-col lg:flex-row h-[calc(100vh-73px)] overflow-hidden">
+
+        @* --- WRITER CANVAS (LEFT) --- *@
+        <div class="flex-1 overflow-y-auto px-6 py-8 md:px-12 md:py-12 custom-scrollbar">
+            <div class="max-w-3xl mx-auto space-y-8">
+
+                @* TITLE & CATEGORY SECTION *@
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
+                    <div class="md:col-span-8">
+                        <label class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Title</label>
+                        <input @bind="entryModel.Title"
+                               class="w-full text-4xl font-black bg-transparent border-none outline-none placeholder:text-slate-200 dark:placeholder:text-white/10 tracking-tighter"
+                               placeholder="Untitled Entry..." />
+                    </div>
+                    <div class="md:col-span-4">
+                        <label class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Category</label>
+                        <select @bind="entryModel.Category"
+                                class="w-full bg-transparent border-b @(State.IsDarkMode ? "border-white/10" : "border-slate-200") py-2 text-sm font-bold outline-none cursor-pointer focus:border-indigo-500 transition-colors">
+                            <option value="">-- Select Category --</option>
+                            <option value="Health">❤️ Health</option>
+                            <option value="Learning">📖 Learning</option>
+                            <option value="Personal">👤 Personal</option>
+                            <option value="Travel">✈️ Travel</option>
+                            <option value="Work">💼 Work</option>
+                        </select>
+                    </div>
+                </div>
+
+                @* FLOATING TOOLBAR *@
+                <div class="sticky top-4 z-30 flex items-center gap-1 p-1.5 rounded-2xl border backdrop-blur-xl @(State.IsDarkMode ? "bg-white/5 border-white/10 shadow-2xl" : "bg-white/80 border-slate-200 shadow-xl shadow-slate-200/40") w-fit mx-auto md:mx-0">
+                    @EditorBtn("bold", "bi-type-bold", "Bold")
+                    @EditorBtn("italic", "bi-type-italic", "Italic")
+                    <div class="w-[1px] h-4 bg-slate-300 dark:bg-white/10 mx-1"></div>
+                    @EditorBtn("formatBlock", "bi-hash", "Header", "h1")
+                    <div class="w-[1px] h-4 bg-slate-300 dark:bg-white/10 mx-1"></div>
+                    @EditorBtn("insertUnorderedList", "bi-list-ul", "Bullet List")
+                    @EditorBtn("insertOrderedList", "bi-list-ol", "Numbered List")
+                    <button @onclick="AddLink" class="p-2 rounded-xl text-slate-500 hover:bg-indigo-500 hover:text-white transition-all">
+                        <i class="bi bi-link-45deg text-lg"></i>
+                    </button>
+                    <button @onclick='() => DoStyle("removeFormat")' class="p-2 rounded-xl text-slate-500 hover:bg-rose-500 hover:text-white transition-all">
+                        <i class="bi bi-eraser text-lg"></i>
+                    </button>
+                </div>
+
+                @* MAIN CONTENT AREA *@
+                <div id="richEditor" contenteditable="true" spellcheck="true"
+                     @onmouseup="UpdateActiveStyles"
+                     @onkeyup="UpdateActiveStyles"
+                     class="min-h-[500px] w-full outline-none text-xl leading-relaxed text-slate-500 dark:text-slate-300 focus:text-slate-900 dark:focus:text-white transition-colors"
+                     placeholder="Start writing...">
+                </div>
+            </div>
+        </div>
+
+        @* --- SIDEBAR (RIGHT) --- *@
+        <aside class="w-full lg:w-[400px] border-l @(State.IsDarkMode ? "border-white/5 bg-[#0a0a0a]" : "border-slate-100 bg-slate-50/50") overflow-y-auto custom-scrollbar p-8">
+            <h2 class="text-xl font-bold mb-8">Daily Moods</h2>
+
+            @* 1. PRIMARY MOOD *@
+            <section class="mb-10">
+                <div class="flex justify-between items-center mb-4">
+                    <label class="text-[10px] font-black uppercase tracking-widest text-indigo-500">1. Primary Mood <span class="text-rose-500">*</span></label>
+                    @if (!string.IsNullOrEmpty(entryModel.PrimaryMood))
+                    {
+                        <span class="text-[9px] bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded-full font-bold">Selected</span>
+                    }
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    @MoodBtn("Happy", "😊", "bg-emerald-500")
+                    @MoodBtn("Excited", "🤩", "bg-orange-500")
+                    @MoodBtn("Relaxed", "🧘", "bg-blue-400")
+                    @MoodBtn("Grateful", "🙏", "bg-purple-500")
+                    @MoodBtn("Confident", "💪", "bg-indigo-500")
+                </div>
+            </section>
+
+            @* 2. SECONDARY MOODS (LIMIT 2) *@
+            <section class="mb-10 p-6 rounded-[32px] @(State.IsDarkMode ? "bg-white/5" : "bg-white border border-slate-200 shadow-sm")">
+                <div class="flex justify-between items-center mb-4">
+                    <label class="text-[10px] font-black uppercase tracking-widest text-slate-400">2. Secondary Moods <span class="text-rose-500">*</span></label>
+                    <span class="text-[10px] font-bold @(secondaryMoodList.Count == 2 ? "text-indigo-500" : "text-slate-400")">
+                        @secondaryMoodList.Count / 2
+                    </span>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <span class="text-[9px] font-bold text-amber-500 block mb-2 uppercase tracking-tighter">Neutral</span>
+                        <div class="flex flex-wrap gap-2">
+                            @TagBtn("Calm", "😌") @TagBtn("Thoughtful", "🤔") @TagBtn("Curious", "🧐") @TagBtn("Nostalgic", "⏳") @TagBtn("Bored", "😑")
+                        </div>
+                    </div>
+                    <div>
+                        <span class="text-[9px] font-bold text-rose-400 block mb-2 uppercase tracking-tighter">Negative</span>
+                        <div class="flex flex-wrap gap-2">
+                            @TagBtn("Sad", "😢") @TagBtn("Angry", "😠") @TagBtn("Stressed", "😫") @TagBtn("Lonely", "👤") @TagBtn("Anxious", "😟")
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            @* 3. TAGS *@
+            <section>
+                <label class="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-4">Tags</label>
+                <div class="flex gap-2 mb-4">
+                    <input @bind="customTagInput" @onkeydown="HandleTagKeyDown"
+                           placeholder="Add custom tag..."
+                           class="flex-1 bg-transparent border-b @(State.IsDarkMode ? "border-white/10" : "border-slate-200") py-1 text-xs outline-none focus:border-indigo-500 transition-colors" />
+                    <button @onclick="CreateCustomTag" class="text-indigo-500 hover:scale-110 transition-transform"><i class="bi bi-plus-circle-fill text-lg"></i></button>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    @foreach (var tag in availableTags)
+                    {
+                        @SmallTag(tag)
+                    }
+                </div>
+            </section>
+        </aside>
+    </main>
+</div>
+
+<style>
+    #richEditor:empty:before {
+        content: attr(placeholder);
+        opacity: 0.3;
+        pointer-events: none;
+        display: block;
+    }
+
+    #richEditor h1 {
+        font-size: 2rem;
+        font-weight: 800;
+        margin: 1.5rem 0 0.5rem 0;
+        letter-spacing: -0.02em;
+        line-height: 1.2;
+    }
+
+    #richEditor p {
+        margin-bottom: 1.25rem;
+    }
+
+    #richEditor ul {
+        list-style: disc;
+        padding-left: 2.5rem;
+        margin-bottom: 1.25rem;
+    }
+
+    #richEditor ol {
+        list-style: decimal;
+        padding-left: 2.5rem;
+        margin-bottom: 1.25rem;
+    }
+
+    #richEditor li {
+        display: list-item;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 4px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: rgba(99, 102, 241, 0.2);
+        border-radius: 10px;
+    }
+</style>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+    private JournalEntry entryModel = new JournalEntry { Title = "", Category = "", PrimaryMood = "" };
+    private List<string> secondaryMoodList = new();
+    private List<string> selectedTagsList = new();
+    private List<string> availableTags = new();
+    private string customTagInput = "";
+    private bool showToast = false;
+
+    private Dictionary<string, bool> activeStyles = new() {
+        { "bold", false }, { "italic", false }, { "h1", false },
+        { "insertUnorderedList", false }, { "insertOrderedList", false }
+    };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            State.OnChange += StateHasChanged;
+            availableTags = await JService.GetAvailableTags();
+            if (Id.HasValue)
+            {
+                var existing = await JService.GetEntryById(Id.Value);
+                if (existing != null)
+                {
+                    entryModel = existing;
+                    if (!string.IsNullOrEmpty(existing.SecondaryMoods)) secondaryMoodList = existing.SecondaryMoods.Split(',').ToList();
+                    if (!string.IsNullOrEmpty(existing.Tags)) selectedTagsList = existing.Tags.Split(',').ToList();
+                    await JS.InvokeVoidAsync("interopFunctions.setHtml", "richEditor", entryModel.Content ?? "");
+                }
+            }
+            StateHasChanged();
+        }
+    }
+
+    private async Task DoStyle(string cmd, string val = null)
+    {
+        if (cmd == "formatBlock")
+        {
+            var currentBlock = await JS.InvokeAsync<string>("interopFunctions.queryCommandValue", "formatBlock");
+            await JS.InvokeVoidAsync("interopFunctions.executeCommand", "formatBlock", currentBlock.ToLower().Contains("h1") ? "<p>" : "<h1>");
+        }
+        else
+        {
+            await JS.InvokeVoidAsync("interopFunctions.executeCommand", cmd, val);
+        }
+        await UpdateActiveStyles();
+    }
+
+    private async Task UpdateActiveStyles()
+    {
+        activeStyles["bold"] = await JS.InvokeAsync<bool>("interopFunctions.queryCommandState", "bold");
+        activeStyles["italic"] = await JS.InvokeAsync<bool>("interopFunctions.queryCommandState", "italic");
+        activeStyles["insertUnorderedList"] = await JS.InvokeAsync<bool>("interopFunctions.queryCommandState", "insertUnorderedList");
+        activeStyles["insertOrderedList"] = await JS.InvokeAsync<bool>("interopFunctions.queryCommandState", "insertOrderedList");
+        var format = await JS.InvokeAsync<string>("interopFunctions.queryCommandValue", "formatBlock");
+        activeStyles["h1"] = !string.IsNullOrEmpty(format) && format.ToLower().Contains("h1");
+        StateHasChanged();
+    }
+
+    private async Task AddLink()
+    {
+        var url = await JS.InvokeAsync<string>("prompt", "Enter URL:", "https://");
+        if (!string.IsNullOrEmpty(url)) await DoStyle("createLink", url);
+    }
+
+    private async Task HandleSave()
+    {
+        if (string.IsNullOrEmpty(entryModel.PrimaryMood) || secondaryMoodList.Count != 2)
+        {
+            await JS.InvokeVoidAsync("alert", "Selection Required: 1 Primary Mood and exactly 2 Secondary Moods.");
+            return;
+        }
+
+        entryModel.Content = await JS.InvokeAsync<string>("interopFunctions.getHtml", "richEditor");
+        entryModel.SecondaryMoods = string.Join(",", secondaryMoodList);
+        entryModel.Tags = string.Join(",", selectedTagsList);
+
+        await JService.SaveOrUpdate(entryModel);
+        showToast = true;
+        StateHasChanged();
+        await Task.Delay(2000);
+        showToast = false;
+
+        if (Id.HasValue) Nav.NavigateTo("/journal"); else await ResetForm();
+    }
+
+    private async Task ResetForm()
+    {
+        entryModel = new JournalEntry { Title = "", Category = "", EntryDate = DateTime.Today, PrimaryMood = "" };
+        secondaryMoodList.Clear();
+        selectedTagsList.Clear();
+        await JS.InvokeVoidAsync("interopFunctions.setHtml", "richEditor", "");
+        StateHasChanged();
+    }
+
+    private async Task HandleDelete()
+    {
+        if (await JS.InvokeAsync<bool>("confirm", "Permanently discard this entry?"))
+        {
+            if (Id.HasValue) { await JService.DeleteEntry(Id.Value); Nav.NavigateTo("/journal"); }
+            else await ResetForm();
+        }
+    }
+
+    private void SetPrimaryMood(string mood) => entryModel.PrimaryMood = (entryModel.PrimaryMood == mood) ? "" : mood;
+
+    private void ToggleSecondaryMood(string item)
+    {
+        if (secondaryMoodList.Contains(item))
+        {
+            secondaryMoodList.Remove(item);
+        }
+        else if (secondaryMoodList.Count < 2)
+        {
+            secondaryMoodList.Add(item);
+        }
+    }
+
+    private void ToggleTag(string item)
+    {
+        if (selectedTagsList.Contains(item)) selectedTagsList.Remove(item); else selectedTagsList.Add(item);
+    }
+
+    private async Task CreateCustomTag()
+    {
+        if (!string.IsNullOrWhiteSpace(customTagInput) && !availableTags.Contains(customTagInput))
+        {
+            await JService.SaveNewTag(customTagInput);
+            availableTags = await JService.GetAvailableTags();
+            customTagInput = "";
+        }
+    }
+
+    private async Task HandleTagKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await CreateCustomTag(); }
+
+    @* --- UI COMPONENTS --- *@
+    RenderFragment EditorBtn(string cmd, string icon, string title, string val = null) => __builder =>
+    {
+        bool isActive = activeStyles.GetValueOrDefault(val ?? cmd);
+        <button @onclick='() => DoStyle(cmd, val)' @onclick:preventDefault="true" title="@title"
+                class="p-2 rounded-xl transition-all @(isActive ? "bg-indigo-600 text-white shadow-lg" : "text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10")">
+            @if (val == "h1")
+            {
+                <span class="font-black text-xs px-1">H1</span>
+            }
+            else
+            {
+
+                <i class="bi @icon text-lg"></i>
+            }
+        </button>
+    };
+
+    RenderFragment MoodBtn(string name, string emoji, string color) => __builder =>
+    {
+        bool isSel = entryModel.PrimaryMood == name;
+        <button @onclick="() => SetPrimaryMood(name)"
+                class="flex items-center justify-center gap-2 p-4 rounded-3xl border transition-all duration-300
+                               @(isSel ? $"{color} text-white border-transparent scale-105 shadow-lg shadow-black/20" : "bg-white dark:bg-white/5 border-slate-100 dark:border-white/5 text-slate-400 hover:border-indigo-500/50")">
+            <span class="text-xl">@emoji</span>
+            <span class="text-[10px] font-black uppercase tracking-tighter">@name</span>
+        </button>
+    };
+
+    RenderFragment TagBtn(string name, string emoji) => __builder =>
+    {
+        bool isSel = secondaryMoodList.Contains(name);
+        <button @onclick="() => ToggleSecondaryMood(name)"
+                class="px-4 py-2 rounded-2xl border text-[10px] font-bold transition-all
+                               @(isSel ? "bg-indigo-600 border-indigo-600 text-white" : "bg-transparent border-slate-200 text-slate-400 hover:border-indigo-500")">
+            @emoji @name
+        </button>
+    };
+
+    RenderFragment SmallTag(string name) => __builder =>
+    {
+        bool isSel = selectedTagsList.Contains(name);
+        <button @onclick="() => ToggleTag(name)"
+                class="px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all
+                               @(isSel ? "bg-indigo-600 border-indigo-600 text-white" : "border-slate-200 text-slate-400")">
+            #@name
+        </button>
+    };
+
+    public void Dispose() => State.OnChange -= StateHasChanged;
+}

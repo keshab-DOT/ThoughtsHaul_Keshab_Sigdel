@@ -1,0 +1,90 @@
+@page "/login"
+@using MauiApp1.Services
+@inject AuthService AuthService
+@inject NavigationManager Nav
+
+<div class="relative min-h-screen w-full flex items-center justify-center bg-[#f8fafc] overflow-hidden">
+
+    <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-[#E45D25]/10 blur-[120px]"></div>
+    <div class="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-orange-200/20 blur-[120px]"></div>
+
+    <div class="relative z-10 w-full max-w-5xl px-6 grid md:grid-cols-2 gap-0 bg-white rounded-[40px] shadow-2xl shadow-slate-200/50 border border-white overflow-hidden">
+
+        <div class="p-10 md:p-16 flex flex-col justify-center">
+            <header class="mb-10">
+                <div class="h-1 w-12 bg-[#E45D25] mb-6 rounded-full"></div>
+                <h1 class="text-5xl font-black text-slate-900 tracking-tight mb-2">Welcome.</h1>
+                <p class="text-slate-400 font-medium">Log in to your ThoughtsHaul account</p>
+            </header>
+
+            <div class="space-y-6">
+                <div class="group">
+                    <label class="text-[11px] font-black uppercase tracking-widest text-slate-400 transition-colors group-focus-within:text-[#E45D25] mb-2 block ml-1">Username</label>
+                    <input @bind="username"
+                           placeholder="Enter your handle"
+                           class="w-full bg-slate-50 border-none px-6 py-4 rounded-2xl text-slate-700 placeholder:text-slate-300 focus:ring-2 focus:ring-[#E45D25]/20 focus:bg-white transition-all outline-none" />
+                </div>
+
+                <div class="group">
+                    <label class="text-[11px] font-black uppercase tracking-widest text-slate-400 transition-colors group-focus-within:text-[#E45D25] mb-2 block ml-1">Password</label>
+                    <input @bind="password"
+                           type="password"
+                           placeholder="••••••••"
+                           class="w-full bg-slate-50 border-none px-6 py-4 rounded-2xl text-slate-700 placeholder:text-slate-300 focus:ring-2 focus:ring-[#E45D25]/20 focus:bg-white transition-all outline-none" />
+                </div>
+            </div>
+
+            <button @onclick="HandleLogin"
+                    class="mt-10 w-full bg-slate-900 hover:bg-[#E45D25] text-white py-5 rounded-2xl font-bold tracking-wide transition-all duration-300 transform active:scale-[0.98] shadow-xl shadow-slate-200 hover:shadow-[#E45D25]/30">
+                Sign In
+            </button>
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="mt-6 p-4 rounded-xl bg-red-50 border-l-4 border-red-500 flex items-center gap-3">
+                    <span class="text-red-600 text-sm font-semibold">@errorMessage</span>
+                </div>
+            }
+        </div>
+
+        <div class="hidden md:flex bg-slate-900 relative items-center justify-center p-16 overflow-hidden">
+            <div class="absolute border border-white/5 rounded-full w-[500px] h-[500px]"></div>
+            <div class="absolute border border-white/5 rounded-full w-[350px] h-[350px]"></div>
+
+            <div class="relative z-20 text-center">
+                <div class="inline-flex items-center justify-center w-24 h-24 bg-white/10 backdrop-blur-xl rounded-[32px] mb-8 border border-white/10 rotate-12 hover:rotate-0 transition-transform duration-500">
+                    <span class="text-4xl">📖</span>
+                </div>
+                <h2 class="text-4xl font-bold text-white mb-4">ThoughtsHaul</h2>
+                <p class="text-slate-400 max-w-xs leading-relaxed">
+                    A minimal space for your complex thoughts. Your digital sanctuary for daily reflections.
+                </p>
+            </div>
+
+            <div class="absolute bottom-10 text-white/20 font-black tracking-tighter text-6xl select-none">
+                THOUGHTS
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string username = string.Empty;
+    private string password = string.Empty;
+    private string errorMessage = string.Empty;
+
+    private async Task HandleLogin()
+    {
+        errorMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+        {
+            errorMessage = "Missing credentials.";
+            return;
+        }
+
+        var success = await AuthService.Login(username, password);
+        if (success) Nav.NavigateTo("/", forceLoad: true);
+        else errorMessage = "Invalid credentials.";
+    }
+}

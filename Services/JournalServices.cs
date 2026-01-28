@@ -1,5 +1,6 @@
 ﻿using MauiApp1.Data;
 using MauiApp1.Models;
+using Microsoft.Data.Sqlite;
 using System.Linq;
 using System.Text.RegularExpressions;
 
@@ -10,7 +11,6 @@ namespace MauiApp1.Services
         public int TotalEntries { get; set; } = 0;
         public int CurrentStreak { get; set; } = 0;
         public int AverageWords { get; set; } = 0;
-
         public int LongestStreak { get; set; } = 0;
         public int[] ChartData { get; set; } = Array.Empty<int>();
         public string[] ChartLabels { get; set; } = Array.Empty<string>();
@@ -86,6 +86,8 @@ namespace MauiApp1.Services
             await command.ExecuteNonQueryAsync();
         }
 
+        // --- CALENDAR & DATE SPECIFIC METHODS ---
+
         public async Task<List<DateTime>> GetEntryDates()
         {
             using var connection = _dbService.GetConnection();
@@ -131,6 +133,8 @@ namespace MauiApp1.Services
         {
             await DeleteByDate(DateTime.Today);
         }
+
+        // --- GENERAL JOURNAL METHODS ---
 
         public async Task<List<JournalEntry>> GetAllEntries()
         {
@@ -208,6 +212,7 @@ namespace MauiApp1.Services
             };
         }
 
+        // --- DASHBOARD & ANALYTICS ---
 
         public async Task<DashboardStats> GetDashboardStats(int days = 7)
         {
@@ -288,10 +293,12 @@ namespace MauiApp1.Services
             var rangeEntries = allEntries.Where(e => e.EntryDate.Date >= cutoffDate).ToList();
             var entryDatesInRange = rangeEntries.Select(e => e.EntryDate.Date).ToHashSet();
 
+            // 1. Sentiment Grouping
             var positiveMoods = new[] { "Happy", "Excited", "Relaxed", "Grateful", "Confident" };
             var neutralMoods = new[] { "Calm", "Thoughtful", "Focused", "Nostalgic" };
             var negativeMoods = new[] { "Anxious", "Sad", "Stressed", "Lonely", "Angry", "Bored" };
 
+            // Use the existing property labels, just update counts
             data.SentimentCounts = new List<int>
     {
         rangeEntries.Count(e => positiveMoods.Contains(e.PrimaryMood)),
@@ -307,6 +314,7 @@ namespace MauiApp1.Services
 
             data.MostFrequentMood = moodGroups.FirstOrDefault()?.Key ?? "No Data";
 
+            // 2. Missed Days
             for (int i = 0; i < days; i++)
             {
                 var date = DateTime.Today.AddDays(-i);
@@ -315,17 +323,20 @@ namespace MauiApp1.Services
                     data.MissedDates.Add(date);
                 }
             }
-            data.MissedDaysCount = data.MissedDates.Count; 
+            data.MissedDaysCount = data.MissedDates.Count; // This now works with the 'set' added above
 
+            // 3. Category Breakdown (Fixed Dictionary Type Mismatch)
             var totalWithCat = rangeEntries.Count(e => !string.IsNullOrEmpty(e.Category));
             if (totalWithCat > 0)
             {
                 data.CategoryBreakdown = rangeEntries
                     .Where(e => !string.IsNullOrEmpty(e.Category))
                     .GroupBy(e => e.Category)
+                    // Ensure this matches Dictionary<string, double>
                     .ToDictionary(g => g.Key, g => Math.Round((double)g.Count() / totalWithCat * 100, 1));
             }
 
+            // 4. Tag Frequency
             data.TopTags = rangeEntries
                 .Where(e => !string.IsNullOrEmpty(e.Tags))
                 .SelectMany(e => e.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries))
@@ -334,6 +345,7 @@ namespace MauiApp1.Services
                 .Take(10)
                 .ToDictionary(g => g.Key, g => g.Count());
 
+            // 5. Trend Chart
             var trendEntries = rangeEntries.OrderBy(e => e.EntryDate).ToList();
             data.TrendLabels = trendEntries.Select(e => e.EntryDate.ToString("MMM dd")).ToList();
             data.TrendCounts = trendEntries.Select(e => {

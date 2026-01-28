@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
-using Microsoft.Maui;
 using MauiApp1.Data;
 using MauiApp1.Services;
+using MauiApp1.Models;
 
 namespace MauiApp1
 {
@@ -24,6 +24,7 @@ namespace MauiApp1
             builder.Services.AddSingleton<DBContext>();
             builder.Services.AddSingleton<AuthService>();
             builder.Services.AddSingleton<AppState>();
+
 
 #if DEBUG
             builder.Services.AddBlazorWebViewDeveloperTools();
